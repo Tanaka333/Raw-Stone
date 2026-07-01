@@ -1,0 +1,1337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guard Cooldown Tracker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #1a1a2e;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 20px;
+        }
+
+        .player-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .job-selector {
+            position: relative;
+            width: 50px;
+            height: 50px;
+            border: 2px solid #4a4a6a;
+            border-radius: 6px;
+            cursor: pointer;
+            background: #2a2a4e;
+        }
+
+        .job-selector:hover {
+            border-color: #7a7aaa;
+        }
+
+        .job-selector img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .job-selector .placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #6a6a8a;
+            font-size: 24px;
+        }
+
+        .job-dropdown {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 60px;
+            background: #2a2a4e;
+            border: 2px solid #4a4a6a;
+            border-radius: 8px;
+            padding: 10px;
+            z-index: 100;
+            width: 220px;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .job-dropdown.show {
+            display: flex;
+        }
+
+        .job-option {
+            width: 36px;
+            height: 36px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            border-radius: 4px;
+            transition: border-color 0.2s;
+        }
+
+        .job-option:hover {
+            border-color: #7a7aaa;
+        }
+
+        .job-break {
+            flex-basis: 100%;
+            height: 0;
+        }
+
+        .job-option img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .cooldown-btn {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            border: 3px solid #4a4a6a;
+            border-radius: 8px;
+            cursor: pointer;
+            overflow: hidden;
+            transition: transform 0.1s, border-color 0.2s;
+        }
+
+        .cooldown-btn:hover:not(.on-cooldown) {
+            transform: scale(1.05);
+            border-color: #7a7aaa;
+        }
+
+        .cooldown-btn img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .cooldown-btn.on-cooldown {
+            /* cursor: not-allowed; */
+            user-select: none;
+        }
+
+        .cooldown-btn.on-cooldown img {
+            filter: grayscale(100%) brightness(0.5);
+        }
+
+        .cooldown-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .cooldown-btn.on-cooldown .cooldown-overlay {
+            opacity: 1;
+        }
+
+        .cooldown-text {
+            color: #fff;
+            font-size: 28px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        .player-label {
+            position: absolute;
+            bottom: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            font-size: 12px;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+        }
+
+        .reset-btn {
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+        }
+
+        .reset-btn:hover {
+            opacity: 1;
+        }
+
+        .reset-btn img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        h1 {
+            color: #fff;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 1.5rem;
+        }
+
+        .extra-wrapper {
+            display: none;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .extra-wrapper.visible {
+            display: flex;
+        }
+
+        .extra-wrapper .cooldown-btn {
+            width: 80px;
+            height: 80px;
+        }
+
+        .extra-wrapper .cooldown-text {
+            font-size: 28px;
+        }
+
+        .extra-wrapper .player-label {
+            font-size: 12px;
+        }
+
+        .logo {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            width: 80px;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+
+        <div class="player-row" data-player="1">
+            <div class="job-selector" onclick="toggleJobDropdown(this)">
+                <span class="placeholder">?</span>
+                <div class="job-dropdown">
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'drk')">
+                        <img src="static/drk.png" alt="drk">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'gnb')">
+                        <img src="static/gnb.png" alt="gnb">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'pld')">
+                        <img src="static/pld.png" alt="pld">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'war')">
+                        <img src="static/war.png" alt="war">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'ast')">
+                        <img src="static/ast.png" alt="ast">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'sge')">
+                        <img src="static/sge.png" alt="sge">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'sch')">
+                        <img src="static/sch.png" alt="sch">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'whm')">
+                        <img src="static/whm.png" alt="whm">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'drg')">
+                        <img src="static/drg.png" alt="drg">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'mnk')">
+                        <img src="static/mnk.png" alt="mnk">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'nin')">
+                        <img src="static/nin.png" alt="nin">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'rpr')">
+                        <img src="static/rpr.png" alt="rpr">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'sam')">
+                        <img src="static/sam.png" alt="sam">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'vpr')">
+                        <img src="static/vpr.png" alt="vpr">
+                    </div>
+                    
+                    <div class="job-break"></div>
+                    <div class="job-option" onclick="selectJob(event, this, 'blm')">
+                        <img src="static/blm.png" alt="blm">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'brd')">
+                        <img src="static/brd.png" alt="brd">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'dnc')">
+                        <img src="static/dnc.png" alt="dnc">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'mch')">
+                        <img src="static/mch.png" alt="mch">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'pct')">
+                        <img src="static/pct.png" alt="pct">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'rdm')">
+                        <img src="static/rdm.png" alt="rdm">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'smn')">
+                        <img src="static/smn.png" alt="smn">
+                    </div>
+                    
+                </div>
+            </div>
+            <div class="cooldown-btn guard-btn" data-player="1" data-cooldown="30" onclick="startCooldown(this)">
+                <img src="static/Guard_(PvP).png" alt="Guard">
+                <div class="cooldown-overlay">
+                    <span class="cooldown-text">30</span>
+                </div>
+                <span class="player-label">P1</span>
+            </div>
+            <div class="reset-btn" onclick="resetCooldown(this)">
+                <img src="static/refresh.jpg" alt="Reset">
+            </div>
+            <div class="extra-wrapper" data-job="pld">
+                <div class="cooldown-btn ability-btn" data-cooldown="30" onclick="startCooldown(this)">
+                    <img src="static/Cover_(PvP).png" alt="Cover">
+                    <div class="cooldown-overlay"><span class="cooldown-text">30</span></div>
+                    <span class="player-label">Cover</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="drg">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Horrid_Roar_(PvP).png" alt="Horrid Roar">
+                    <div class="cooldown-overlay"><span class="cooldown-text">24</span></div>
+                    <span class="player-label">Roar</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="sam">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Hissatsu_Chiten_(PvP).png" alt="Hissatsu Chiten">
+                    <div class="cooldown-overlay"><span class="cooldown-text">24</span></div>
+                    <span class="player-label">Chiten</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="brd">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Wardens_Paean_(PvP).png" alt="Warden's Paean">
+                    <div class="cooldown-overlay"><span class="cooldown-text">24</span></div>
+                    <span class="player-label">Paean</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="ast">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Epicycle_(PvP).png" alt="Epicycle">
+                    <div class="cooldown-overlay"><span class="cooldown-text">24</span></div>
+                    <span class="player-label">Epicycle</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="mch">
+                <div class="cooldown-btn ability-btn" data-cooldown="16" onclick="startCooldown(this)">
+                    <img src="static/Scattergun_(PvP).png" alt="Scattergun">
+                    <div class="cooldown-overlay"><span class="cooldown-text">16</span></div>
+                    <span class="player-label">Scatter</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+        </div>
+
+        <div class="player-row" data-player="2">
+            <div class="job-selector" onclick="toggleJobDropdown(this)">
+                <span class="placeholder">?</span>
+                <div class="job-dropdown">
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'drk')">
+                        <img src="static/drk.png" alt="drk">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'gnb')">
+                        <img src="static/gnb.png" alt="gnb">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'pld')">
+                        <img src="static/pld.png" alt="pld">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'war')">
+                        <img src="static/war.png" alt="war">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'ast')">
+                        <img src="static/ast.png" alt="ast">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'sge')">
+                        <img src="static/sge.png" alt="sge">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'sch')">
+                        <img src="static/sch.png" alt="sch">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'whm')">
+                        <img src="static/whm.png" alt="whm">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'drg')">
+                        <img src="static/drg.png" alt="drg">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'mnk')">
+                        <img src="static/mnk.png" alt="mnk">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'nin')">
+                        <img src="static/nin.png" alt="nin">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'rpr')">
+                        <img src="static/rpr.png" alt="rpr">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'sam')">
+                        <img src="static/sam.png" alt="sam">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'vpr')">
+                        <img src="static/vpr.png" alt="vpr">
+                    </div>
+                    
+                    <div class="job-break"></div>
+                    <div class="job-option" onclick="selectJob(event, this, 'blm')">
+                        <img src="static/blm.png" alt="blm">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'brd')">
+                        <img src="static/brd.png" alt="brd">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'dnc')">
+                        <img src="static/dnc.png" alt="dnc">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'mch')">
+                        <img src="static/mch.png" alt="mch">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'pct')">
+                        <img src="static/pct.png" alt="pct">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'rdm')">
+                        <img src="static/rdm.png" alt="rdm">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'smn')">
+                        <img src="static/smn.png" alt="smn">
+                    </div>
+                    
+                </div>
+            </div>
+            <div class="cooldown-btn guard-btn" data-player="2" data-cooldown="30" onclick="startCooldown(this)">
+                <img src="static/Guard_(PvP).png" alt="Guard">
+                <div class="cooldown-overlay">
+                    <span class="cooldown-text">30</span>
+                </div>
+                <span class="player-label">P2</span>
+            </div>
+            <div class="reset-btn" onclick="resetCooldown(this)">
+                <img src="static/refresh.jpg" alt="Reset">
+            </div>
+            <div class="extra-wrapper" data-job="pld">
+                <div class="cooldown-btn ability-btn" data-cooldown="30" onclick="startCooldown(this)">
+                    <img src="static/Cover_(PvP).png" alt="Cover">
+                    <div class="cooldown-overlay"><span class="cooldown-text">30</span></div>
+                    <span class="player-label">Cover</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="drg">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Horrid_Roar_(PvP).png" alt="Horrid Roar">
+                    <div class="cooldown-overlay"><span class="cooldown-text">24</span></div>
+                    <span class="player-label">Roar</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="sam">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Hissatsu_Chiten_(PvP).png" alt="Hissatsu Chiten">
+                    <div class="cooldown-overlay"><span class="cooldown-text">24</span></div>
+                    <span class="player-label">Chiten</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="brd">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Wardens_Paean_(PvP).png" alt="Warden's Paean">
+                    <div class="cooldown-overlay"><span class="cooldown-text">24</span></div>
+                    <span class="player-label">Paean</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="ast">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Epicycle_(PvP).png" alt="Epicycle">
+                    <div class="cooldown-overlay"><span class="cooldown-text">24</span></div>
+                    <span class="player-label">Epicycle</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="mch">
+                <div class="cooldown-btn ability-btn" data-cooldown="16" onclick="startCooldown(this)">
+                    <img src="static/Scattergun_(PvP).png" alt="Scattergun">
+                    <div class="cooldown-overlay"><span class="cooldown-text">16</span></div>
+                    <span class="player-label">Scatter</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+        </div>
+
+        <div class="player-row" data-player="3">
+            <div class="job-selector" onclick="toggleJobDropdown(this)">
+                <span class="placeholder">?</span>
+                <div class="job-dropdown">
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'drk')">
+                        <img src="static/drk.png" alt="drk">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'gnb')">
+                        <img src="static/gnb.png" alt="gnb">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'pld')">
+                        <img src="static/pld.png" alt="pld">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'war')">
+                        <img src="static/war.png" alt="war">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'ast')">
+                        <img src="static/ast.png" alt="ast">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'sge')">
+                        <img src="static/sge.png" alt="sge">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'sch')">
+                        <img src="static/sch.png" alt="sch">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'whm')">
+                        <img src="static/whm.png" alt="whm">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'drg')">
+                        <img src="static/drg.png" alt="drg">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'mnk')">
+                        <img src="static/mnk.png" alt="mnk">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'nin')">
+                        <img src="static/nin.png" alt="nin">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'rpr')">
+                        <img src="static/rpr.png" alt="rpr">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'sam')">
+                        <img src="static/sam.png" alt="sam">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'vpr')">
+                        <img src="static/vpr.png" alt="vpr">
+                    </div>
+                    
+                    <div class="job-break"></div>
+                    <div class="job-option" onclick="selectJob(event, this, 'blm')">
+                        <img src="static/blm.png" alt="blm">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'brd')">
+                        <img src="static/brd.png" alt="brd">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'dnc')">
+                        <img src="static/dnc.png" alt="dnc">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'mch')">
+                        <img src="static/mch.png" alt="mch">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'pct')">
+                        <img src="static/pct.png" alt="pct">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'rdm')">
+                        <img src="static/rdm.png" alt="rdm">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'smn')">
+                        <img src="static/smn.png" alt="smn">
+                    </div>
+                    
+                </div>
+            </div>
+            <div class="cooldown-btn guard-btn" data-player="3" data-cooldown="30" onclick="startCooldown(this)">
+                <img src="static/Guard_(PvP).png" alt="Guard">
+                <div class="cooldown-overlay">
+                    <span class="cooldown-text">30</span>
+                </div>
+                <span class="player-label">P3</span>
+            </div>
+            <div class="reset-btn" onclick="resetCooldown(this)">
+                <img src="static/refresh.jpg" alt="Reset">
+            </div>
+            <div class="extra-wrapper" data-job="pld">
+                <div class="cooldown-btn ability-btn" data-cooldown="30" onclick="startCooldown(this)">
+                    <img src="static/Cover_(PvP).png" alt="Cover">
+                    <div class="cooldown-overlay"><span class="cooldown-text">30</span></div>
+                    <span class="player-label">Cover</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="drg">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Horrid_Roar_(PvP).png" alt="Horrid Roar">
+                    <div class="cooldown-overlay"><span class="cooldown-text">24</span></div>
+                    <span class="player-label">Roar</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="sam">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Hissatsu_Chiten_(PvP).png" alt="Hissatsu Chiten">
+                    <div class="cooldown-overlay"><span class="cooldown-text">24</span></div>
+                    <span class="player-label">Chiten</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="brd">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Wardens_Paean_(PvP).png" alt="Warden's Paean">
+                    <div class="cooldown-overlay"><span class="cooldown-text">24</span></div>
+                    <span class="player-label">Paean</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="ast">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Epicycle_(PvP).png" alt="Epicycle">
+                    <div class="cooldown-overlay"><span class="cooldown-text">24</span></div>
+                    <span class="player-label">Epicycle</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="mch">
+                <div class="cooldown-btn ability-btn" data-cooldown="16" onclick="startCooldown(this)">
+                    <img src="static/Scattergun_(PvP).png" alt="Scattergun">
+                    <div class="cooldown-overlay"><span class="cooldown-text">16</span></div>
+                    <span class="player-label">Scatter</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+        </div>
+
+        <div class="player-row" data-player="4">
+            <div class="job-selector" onclick="toggleJobDropdown(this)">
+                <span class="placeholder">?</span>
+                <div class="job-dropdown">
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'drk')">
+                        <img src="static/drk.png" alt="drk">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'gnb')">
+                        <img src="static/gnb.png" alt="gnb">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'pld')">
+                        <img src="static/pld.png" alt="pld">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'war')">
+                        <img src="static/war.png" alt="war">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'ast')">
+                        <img src="static/ast.png" alt="ast">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'sge')">
+                        <img src="static/sge.png" alt="sge">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'sch')">
+                        <img src="static/sch.png" alt="sch">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'whm')">
+                        <img src="static/whm.png" alt="whm">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'drg')">
+                        <img src="static/drg.png" alt="drg">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'mnk')">
+                        <img src="static/mnk.png" alt="mnk">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'nin')">
+                        <img src="static/nin.png" alt="nin">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'rpr')">
+                        <img src="static/rpr.png" alt="rpr">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'sam')">
+                        <img src="static/sam.png" alt="sam">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'vpr')">
+                        <img src="static/vpr.png" alt="vpr">
+                    </div>
+                    
+                    <div class="job-break"></div>
+                    <div class="job-option" onclick="selectJob(event, this, 'blm')">
+                        <img src="static/blm.png" alt="blm">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'brd')">
+                        <img src="static/brd.png" alt="brd">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'dnc')">
+                        <img src="static/dnc.png" alt="dnc">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'mch')">
+                        <img src="static/mch.png" alt="mch">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'pct')">
+                        <img src="static/pct.png" alt="pct">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'rdm')">
+                        <img src="static/rdm.png" alt="rdm">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'smn')">
+                        <img src="static/smn.png" alt="smn">
+                    </div>
+                    
+                </div>
+            </div>
+            <div class="cooldown-btn guard-btn" data-player="4" data-cooldown="30" onclick="startCooldown(this)">
+                <img src="static/Guard_(PvP).png" alt="Guard">
+                <div class="cooldown-overlay">
+                    <span class="cooldown-text">30</span>
+                </div>
+                <span class="player-label">P4</span>
+            </div>
+            <div class="reset-btn" onclick="resetCooldown(this)">
+                <img src="static/refresh.jpg" alt="Reset">
+            </div>
+            <div class="extra-wrapper" data-job="pld">
+                <div class="cooldown-btn ability-btn" data-cooldown="30" onclick="startCooldown(this)">
+                    <img src="static/Cover_(PvP).png" alt="Cover">
+                    <div class="cooldown-overlay"><span class="cooldown-text">30</span></div>
+                    <span class="player-label">Cover</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="drg">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Horrid_Roar_(PvP).png" alt="Horrid Roar">
+                    <div class="cooldown-overlay"><span class="cooldown-text">24</span></div>
+                    <span class="player-label">Roar</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="sam">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Hissatsu_Chiten_(PvP).png" alt="Hissatsu Chiten">
+                    <div class="cooldown-overlay"><span class="cooldown-text">24</span></div>
+                    <span class="player-label">Chiten</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="brd">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Wardens_Paean_(PvP).png" alt="Warden's Paean">
+                    <div class="cooldown-overlay"><span class="cooldown-text">24</span></div>
+                    <span class="player-label">Paean</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="ast">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Epicycle_(PvP).png" alt="Epicycle">
+                    <div class="cooldown-overlay"><span class="cooldown-text">24</span></div>
+                    <span class="player-label">Epicycle</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="mch">
+                <div class="cooldown-btn ability-btn" data-cooldown="16" onclick="startCooldown(this)">
+                    <img src="static/Scattergun_(PvP).png" alt="Scattergun">
+                    <div class="cooldown-overlay"><span class="cooldown-text">16</span></div>
+                    <span class="player-label">Scatter</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+        </div>
+
+        <div class="player-row" data-player="5">
+            <div class="job-selector" onclick="toggleJobDropdown(this)">
+                <span class="placeholder">?</span>
+                <div class="job-dropdown">
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'drk')">
+                        <img src="static/drk.png" alt="drk">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'gnb')">
+                        <img src="static/gnb.png" alt="gnb">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'pld')">
+                        <img src="static/pld.png" alt="pld">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'war')">
+                        <img src="static/war.png" alt="war">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'ast')">
+                        <img src="static/ast.png" alt="ast">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'sge')">
+                        <img src="static/sge.png" alt="sge">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'sch')">
+                        <img src="static/sch.png" alt="sch">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'whm')">
+                        <img src="static/whm.png" alt="whm">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'drg')">
+                        <img src="static/drg.png" alt="drg">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'mnk')">
+                        <img src="static/mnk.png" alt="mnk">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'nin')">
+                        <img src="static/nin.png" alt="nin">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'rpr')">
+                        <img src="static/rpr.png" alt="rpr">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'sam')">
+                        <img src="static/sam.png" alt="sam">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'vpr')">
+                        <img src="static/vpr.png" alt="vpr">
+                    </div>
+                    
+                    <div class="job-break"></div>
+                    <div class="job-option" onclick="selectJob(event, this, 'blm')">
+                        <img src="static/blm.png" alt="blm">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'brd')">
+                        <img src="static/brd.png" alt="brd">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'dnc')">
+                        <img src="static/dnc.png" alt="dnc">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'mch')">
+                        <img src="static/mch.png" alt="mch">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'pct')">
+                        <img src="static/pct.png" alt="pct">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'rdm')">
+                        <img src="static/rdm.png" alt="rdm">
+                    </div>
+                    
+                    
+                    <div class="job-option" onclick="selectJob(event, this, 'smn')">
+                        <img src="static/smn.png" alt="smn">
+                    </div>
+                    
+                </div>
+            </div>
+            <div class="cooldown-btn guard-btn" data-player="5" data-cooldown="30" onclick="startCooldown(this)">
+                <img src="static/Guard_(PvP).png" alt="Guard">
+                <div class="cooldown-overlay">
+                    <span class="cooldown-text">30</span>
+                </div>
+                <span class="player-label">P5</span>
+            </div>
+            <div class="reset-btn" onclick="resetCooldown(this)">
+                <img src="static/refresh.jpg" alt="Reset">
+            </div>
+            <div class="extra-wrapper" data-job="pld">
+                <div class="cooldown-btn ability-btn" data-cooldown="30" onclick="startCooldown(this)">
+                    <img src="static/Cover_(PvP).png" alt="Cover">
+                    <div class="cooldown-overlay"><span class="cooldown-text">30</span></div>
+                    <span class="player-label">Cover</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="drg">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Horrid_Roar_(PvP).png" alt="Horrid Roar">
+                    <div class="cooldown-overlay"><span class="cooldown-text">20</span></div>
+                    <span class="player-label">Roar</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="sam">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Hissatsu_Chiten_(PvP).png" alt="Hissatsu Chiten">
+                    <div class="cooldown-overlay"><span class="cooldown-text">24</span></div>
+                    <span class="player-label">Chiten</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="brd">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Wardens_Paean_(PvP).png" alt="Warden's Paean">
+                    <div class="cooldown-overlay"><span class="cooldown-text">24</span></div>
+                    <span class="player-label">Paean</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="ast">
+                <div class="cooldown-btn ability-btn" data-cooldown="24" onclick="startCooldown(this)">
+                    <img src="static/Epicycle_(PvP).png" alt="Epicycle">
+                    <div class="cooldown-overlay"><span class="cooldown-text">24</span></div>
+                    <span class="player-label">Epicycle</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+            <div class="extra-wrapper" data-job="mch">
+                <div class="cooldown-btn ability-btn" data-cooldown="16" onclick="startCooldown(this)">
+                    <img src="static/Scattergun_(PvP).png" alt="Scattergun">
+                    <div class="cooldown-overlay"><span class="cooldown-text">16</span></div>
+                    <span class="player-label">Scatter</span>
+                </div>
+                <div class="reset-btn" onclick="resetExtraCooldown(this)">
+                    <img src="static/refresh.jpg" alt="Reset">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Store intervals so we can clear them on reset
+        const cooldownIntervals = new Map();
+
+        function startCooldown(button) {
+            const textElement = button.querySelector('.cooldown-text');
+
+            if (button.classList.contains('on-cooldown')) {
+                let currentCooldown = parseInt(button.dataset.currentCooldown) || 30;
+                button.dataset.currentCooldown = currentCooldown - 2;
+
+                textElement.textContent = currentCooldown;
+                return;
+            }
+
+            button.classList.add('on-cooldown');
+
+            const cooldownTime = parseInt(button.dataset.cooldown) || 30;
+            button.dataset.currentCooldown = cooldownTime;
+            textElement.textContent = cooldownTime;
+            button.setAttribute("data-currentCooldown", cooldownTime)
+
+            const interval = setInterval(() => {
+                let currentCooldown = parseInt(button.dataset.currentCooldown) || 30;
+                currentCooldown -= 1;
+                button.dataset.currentCooldown = currentCooldown;
+                textElement.textContent = currentCooldown;
+
+                if (currentCooldown <= 0) {
+                    clearInterval(interval);
+                    cooldownIntervals.delete(button);
+                    button.classList.remove('on-cooldown');
+                    textElement.textContent = cooldownTime;
+                }
+            }, 1000);
+
+            cooldownIntervals.set(button, interval);
+        }
+
+        function resetCooldown(resetBtn) {
+            const row = resetBtn.closest('.player-row');
+            const button = row.querySelector('.cooldown-btn');
+
+            if (button && button.classList.contains('on-cooldown')) {
+                const interval = cooldownIntervals.get(button);
+                if (interval) {
+                    clearInterval(interval);
+                    cooldownIntervals.delete(button);
+                }
+
+                const cooldownTime = parseInt(button.dataset.cooldown) || 30;
+                button.classList.remove('on-cooldown');
+                button.querySelector('.cooldown-text').textContent = cooldownTime;
+            }
+        }
+
+        function resetExtraCooldown(resetBtn) {
+            const wrapper = resetBtn.closest('.extra-wrapper');
+            const button = wrapper.querySelector('.cooldown-btn');
+
+            if (button && button.classList.contains('on-cooldown')) {
+                const interval = cooldownIntervals.get(button);
+                if (interval) {
+                    clearInterval(interval);
+                    cooldownIntervals.delete(button);
+                }
+
+                const cooldownTime = parseInt(button.dataset.cooldown) || 30;
+                button.classList.remove('on-cooldown');
+                button.querySelector('.cooldown-text').textContent = cooldownTime;
+            }
+        }
+
+        function toggleJobDropdown(selector) {
+            const dropdown = selector.querySelector('.job-dropdown');
+            const wasShown = dropdown.classList.contains('show');
+
+            // Close all dropdowns first
+            document.querySelectorAll('.job-dropdown').forEach(d => d.classList.remove('show'));
+
+            // Toggle this one
+            if (!wasShown) {
+                dropdown.classList.add('show');
+            }
+        }
+
+        // Track selected jobs per player: playerNum -> job
+        const playerJobs = new Map();
+
+        function selectJob(event, option, job) {
+            event.stopPropagation();
+            const selector = option.closest('.job-selector');
+            const row = selector.closest('.player-row');
+            const playerNum = parseInt(row.dataset.player);
+            const placeholder = selector.querySelector('.placeholder');
+            const dropdown = selector.querySelector('.job-dropdown');
+
+            // Set new job for this player
+            selector.dataset.selectedJob = job;
+            playerJobs.set(playerNum, job);
+
+            // Remove placeholder and add image
+            if (placeholder) {
+                placeholder.remove();
+            }
+
+            // Check if there's already a selected job image
+            let jobImg = selector.querySelector(':scope > img');
+            if (!jobImg) {
+                jobImg = document.createElement('img');
+                selector.insertBefore(jobImg, dropdown);
+            }
+            jobImg.src = option.querySelector('img').src;
+            jobImg.alt = job;
+
+            // Close dropdown
+            dropdown.classList.remove('show');
+
+            // Update extra abilities visibility for this row
+            updateExtraAbilities(row, job);
+        }
+
+        function updateExtraAbilities(row, selectedJob) {
+            const extraWrappers = row.querySelectorAll('.extra-wrapper');
+
+            extraWrappers.forEach(wrapper => {
+                const requiredJob = wrapper.dataset.job;
+                if (requiredJob === selectedJob) {
+                    wrapper.classList.add('visible');
+                } else {
+                    wrapper.classList.remove('visible');
+                }
+            });
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.job-selector')) {
+                document.querySelectorAll('.job-dropdown').forEach(d => d.classList.remove('show'));
+            }
+        });
+
+        // Keyboard shortcuts: 1-5 for Guard cooldowns, Shift+1-5 for abilities, Alt+1-5 to reset Guard
+        document.addEventListener('keydown', function(e) {
+            const key = e.key;
+
+            // Shift+1 through Shift+5 (shows as !, @, #, $, %)
+            const shiftKeys = {'!': 1, '@': 2, '#': 3, '$': 4, '%': 5};
+
+            // Alt+1-5 to reset Guard cooldown
+            if (e.altKey && key >= '1' && key <= '5') {
+                e.preventDefault();
+                const playerNum = parseInt(key);
+                const row = document.querySelector(`.player-row[data-player="${playerNum}"]`);
+                const resetBtn = row.querySelector(':scope > .reset-btn');
+                if (resetBtn) {
+                    resetCooldown(resetBtn);
+                }
+            } else if (key >= '1' && key <= '5') {
+                const playerNum = parseInt(key);
+                const button = document.querySelector(`.cooldown-btn[data-player="${playerNum}"]`);
+                if (button) {
+                    startCooldown(button);
+                }
+            } else if (shiftKeys[key]) {
+                const playerNum = shiftKeys[key];
+                const row = document.querySelector(`.player-row[data-player="${playerNum}"]`);
+                // Find the visible ability button in this row
+                const visibleWrapper = row.querySelector('.extra-wrapper.visible');
+                if (visibleWrapper) {
+                    const abilityBtn = visibleWrapper.querySelector('.ability-btn');
+                    if (abilityBtn) {
+                        startCooldown(abilityBtn);
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
